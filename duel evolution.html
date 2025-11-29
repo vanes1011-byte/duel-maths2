@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Duel Vrai/Faux - Version autonome sonore</title>
+
+<!-- MathJax pour afficher les formules LaTeX -->
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+
+<style>
+  :root{
+    --blue:#2196F3;
+    --green:#4CAF50;
+    --red:#F44336;
+    --gold:#FFD700;
+  }
+  *{box-sizing:border-box}
+  body { margin:0; font-family: Arial, sans-serif; text-align:center; background:#fafafa; color:#111; }
+  #container { max-width:980px; margin:14px auto; padding:10px; }
+  #question { font-size:1.6rem; margin-top:6px; min-height:3.6rem; }
+  #meta { margin-top:6px; font-size:0.95rem; color:#444; }
+  #timerContainer { width:90%; height:18px; background:#e6e6e6; margin:12px auto; border-radius:10px; overflow:hidden; border:1px solid #ddd; }
+  #timerBar { height:100%; width:100%; background:var(--blue); transition: width 1s linear, background-color 0.3s; }
+  #correctAnswer { font-size:1.15rem; margin-top:10px; font-weight:700; display:none; color:#222; }
+  #correction { font-size:1rem; margin-top:8px; display:none; color:#222; padding:8px 12px; background:#fff; border-radius:6px; border:1px solid #eee; width:92%; margin-left:auto; margin-right:auto; text-align:left; }
+  #nextBtn { font-size:1rem; margin-top:12px; display:none; padding:8px 16px; cursor:pointer; border-radius:6px; border:1px solid #bbb; background:#fff; }
+
+  .game-container { display:flex; gap:12px; height:46vh; margin-top:18px; }
+  .player { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#fff; border:1px solid #eee; border-radius:8px; padding:8px; }
+  .player h2 { margin:0 0 6px 0; font-size:1.05rem; color:#333; }
+  .btnRow { display:flex; flex-direction:column; gap:10px; align-items:center; }
+  button.big { font-size:1.6rem; padding:16px 26px; cursor:pointer; border:none; color:white; width:170px; border-radius:8px; box-shadow:0 3px 0 rgba(0,0,0,0.06); }
+  button.vrai { background:var(--green); }
+  button.faux { background:var(--red); }
+
+  #scores { display:flex; justify-content:center; gap:24px; margin-top:18px; align-items:end; }
+  .score-box { width:180px; min-height:80px; border:2px solid #ddd; border-radius:8px; padding:10px; background:#fff; position:relative; }
+  .score-text { font-weight:700; margin-bottom:6px; }
+  .score-bar { position:absolute; left:0; bottom:0; width:100%; height:0%; background:var(--gold); border-bottom-left-radius:6px; border-bottom-right-radius:6px; transition:height 0.6s ease; opacity:0.95; }
+  .firstResponder { animation: flash 0.45s 2; }
+  @keyframes flash { 0%{background-color:yellow;} 50%{background-color:inherit;} 100%{background-color:yellow;} }
+
+  footer { margin-top:18px; color:#666; font-size:0.9rem; }
+  /* responsive */
+  @media (max-width:700px){
+    .game-container { flex-direction:column; height:auto; }
+    button.big { width:70%; }
+    .score-box { width:45%; }
+    #container { padding:8px; }
+  }
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="question">Question ici...</div>
+  <div id="meta"><span id="qnum">1/10</span></div>
+
+  <div id="timerContainer"><div id="timerBar"></div></div>
+
+  <div id="correctAnswer"></div>
+  <div id="correction"></div>
+  <button id="nextBtn">Question suivante</button>
+
+  <div class="game-container">
+    <div class="player" id="player1">
+      <h2>Joueur 1</h2>
+      <div class="btnRow">
+        <button id="p1Vrai" class="big vrai">VRAI</button>
+        <button id="p1Faux" class="big faux">FAUX</button>
+      </div>
+    </div>
+
+    <div class="player" id="player2">
+      <h2>Joueur 2</h2>
+      <div class="btnRow">
+        <button id="p2Vrai" class="big vrai">VRAI</button>
+        <button id="p2Faux" class="big faux">FAUX</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="scores">
+    <div class="score-box" id="score1">
+      <div class="score-text" id="scoreText1">Joueur 1 : 0</div>
+      <div class="score-bar" id="bar1"></div>
+    </div>
+    <div class="score-box" id="score2">
+      <div class="score-text" id="scoreText2">Joueur 2 : 0</div>
+      <div class="score-bar" id="bar2"></div>
+    </div>
+  </div>
+
+  <footer>
+    Astuce : place le téléphone à plat entre les deux élèves. Un clic initial sur la page (par ex. un bouton) active le son.
+  </footer>
+</div>
+
+<script>
+/* ========= Questions + corrections (LaTeX) ========= */
+const questions = [
+  { text:"Quand une quantité subit une baisse de 20 % puis une hausse de 25 %, elle revient à sa valeur d’origine.", correct:"VRAI",
+    correction:"Vrai : $$0,8 \\times 1,25 = 1$$ → valeur initiale retrouvée." },
+  { text:"Le coefficient multiplicateur associé à une évolution est 1,12. Le taux d’évolution réciproque est donc –12 %.", correct:"FAUX",
+    correction:"Faux : $$\\displaystyle \\frac{1}{1,12} = 0,892857\\ldots \\approx 0,893 \\Rightarrow 0,893 = 1 - 0,107 \\Rightarrow -10{,}7\\%.$$<br><em>Remarque :</em> le taux réciproque est l'inverse du coefficient multiplicateur, pas la soustraction du même pourcentage." },
+  { text:"Pour une hausse de 60 %, le coefficient multiplicateur de l’évolution réciproque est 0,625.", correct:"VRAI",
+    correction:"Vrai : $$\\displaystyle \\frac{1}{1,6} = \\frac{10}{16} = \\frac{5}{8} = 5 \\times \\frac{1}{8} = 5 \\times 0,125 = 0,625.$$" },
+  { text:"Après une baisse de 80 %, il faut une augmentation de 500 % pour revenir à la valeur initiale.", correct:"FAUX",
+    correction:"Faux : $$\\displaystyle \\frac{1}{0,2} = \\frac{10}{2} = 5 = 1 + 4$$ → il faut donc une augmentation de +400 %." },
+  { text:"Une hausse de 30 % suivie d’une hausse de 40 % correspond à une hausse totale de 70 %.", correct:"FAUX",
+    correction:"Faux : coefficient total = $$1,3 \\times 1,4 = 1,82$$ → +82 %." },
+  { text:"Le coefficient multiplicateur de 1,35 correspond à une hausse de 35 %.", correct:"VRAI",
+    correction:"Vrai : $$1,35 = 1 + 0,35.$$" },
+  { text:"Si le coefficient multiplicateur global est 0,9, alors le taux d’évolution global est –10 %.", correct:"VRAI",
+    correction:"Vrai : $$0,9 = 1 - 0,1 \\Rightarrow -10\\%. $$" },
+  { text:"Le taux d’évolution correspondant à un coefficient multiplicateur de 0,72 est de –18 %.", correct:"FAUX",
+    correction:"Faux : $$0,72 = 1 - 0,28 \\Rightarrow -28\\%. $$" },
+  { text:"Pour annuler une baisse de 50 %, il faut ensuite augmenter de 100 %.", correct:"VRAI",
+    correction:"Vrai : $$0,5 \\times 2 = 1.$$" },
+  { text:"Deux évolutions successives de +10 % correspondent à un coefficient multiplicateur global de 1,2.", correct:"FAUX",
+    correction:"Faux : $$1,1 \\times 1,1 = 1,21$$ → +21 %." }
+];
+
+/* ========= State ========= */
+let idx = 0;
+let score1 = 0;
+let score2 = 0;
+let timeLeft = 20;
+let timerInterval = null;
+let answered1 = false, answered2 = false;
+let choice1 = null, choice2 = null;
+let firstResponder = null;
+
+/* ========= UI elements ========= */
+const qElem = document.getElementById('question');
+const qNum = document.getElementById('qnum');
+const timerBar = document.getElementById('timerBar');
+const correctAnswerElem = document.getElementById('correctAnswer');
+const correctionElem = document.getElementById('correction');
+const nextBtn = document.getElementById('nextBtn');
+
+const p1Vrai = document.getElementById('p1Vrai');
+const p1Faux = document.getElementById('p1Faux');
+const p2Vrai = document.getElementById('p2Vrai');
+const p2Faux = document.getElementById('p2Faux');
+
+const scoreText1 = document.getElementById('scoreText1');
+const scoreText2 = document.getElementById('scoreText2');
+const bar1 = document.getElementById('bar1');
+const bar2 = document.getElementById('bar2');
+
+/* ========= Audio via WebAudio (synthèse) ========= */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+/* Ding (premier répondant) */
+function playDing() {
+  try {
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+    g.gain.setValueAtTime(0, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + 0.001);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    // pitch glide
+    o.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+    o.stop(audioCtx.currentTime + 0.26);
+  } catch(e){ /* silence si échec */ }
+}
+
+/* Tick (tic-tac) : court son */ 
+function playTick() {
+  try {
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'square';
+    o.frequency.value = 880;
+    g.gain.value = 0;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    g.gain.setValueAtTime(0.18, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    o.stop(audioCtx.currentTime + 0.13);
+  } catch(e){}
+}
+
+/* Buzz (fin du temps) : brève rafale */ 
+function playBuzz() {
+  try {
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.value = 220;
+    o.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.35, audioCtx.currentTime + 0.02);
+    o.start();
+    o.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+    o.stop(audioCtx.currentTime + 0.62);
+  } catch(e){}
+}
+
+/* ========= Timer logic ========= */
+function startTimer() {
+  clearInterval(timerInterval);
+  timeLeft = 20;
+  updateTimerBar();
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    updateTimerBar();
+    // jouer tic chaque seconde (éviter spam si audioCtx pas activé)
+    try { playTick(); } catch(e){}
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      playBuzz();
+      revealAnswer();
+    }
+  }, 1000);
+}
+
+function updateTimerBar() {
+  const pct = Math.max(0, (timeLeft/20)*100);
+  timerBar.style.width = pct + "%";
+  if (timeLeft <= 5) timerBar.style.backgroundColor = "#e53935"; // passe au rouge quand <=5s
+  else timerBar.style.backgroundColor = "var(--blue)";
+}
+
+/* ========= Game flow ========= */
+function showQuestion() {
+  nextBtn.style.display = 'none';
+  correctAnswerElem.style.display = 'none';
+  correctionElem.style.display = 'none';
+  if (idx >= questions.length) {
+    qElem.textContent = "🎉 FIN DU DUEL ! 🎉";
+    qNum.textContent = `${questions.length}/${questions.length}`;
+    disableButtons();
+    clearInterval(timerInterval);
+    return;
+  }
+  qElem.textContent = questions[idx].text;
+  qNum.textContent = `${idx+1}/${questions.length}`;
+  answered1 = answered2 = false;
+  choice1 = choice2 = null;
+  firstResponder = null;
+  enableButtons();
+  startTimer();
+}
+
+/* handle answer click (doesn't update score yet) */
+function answer(player, choice) {
+  // first interaction with page should unlock audio via user gesture:
+  if (!audioCtx) { try { ensureAudio(); audioCtx.resume && audioCtx.resume(); } catch(e){} }
+  if ((player===1 && answered1) || (player===2 && answered2)) return;
+  if (firstResponder === null) {
+    firstResponder = player;
+    // son ding
+    playDing();
+  }
+  if (player === 1) { answered1 = true; choice1 = choice; if (firstResponder === 1) flashFirst(1); }
+  else { answered2 = true; choice2 = choice; if (firstResponder === 2) flashFirst(2); }
+  // if both answered -> stop timer and reveal
+  if (answered1 && answered2) {
+    clearInterval(timerInterval);
+    revealAnswer();
+  }
+}
+
+function flashFirst(player) {
+  const box = document.getElementById('score' + player);
+  box.classList.add('firstResponder');
+  setTimeout(()=> box.classList.remove('firstResponder'), 900);
+}
+
+function revealAnswer() {
+  disableButtons();
+  const corr = questions[idx].correct;
+  correctAnswerElem.textContent = `Réponse correcte : ${corr}`;
+  correctAnswerElem.style.display = 'block';
+  // afficher la correction (MathJax)
+  correctionElem.innerHTML = questions[idx].correction;
+  correctionElem.style.display = 'block';
+  MathJax.typesetPromise && MathJax.typesetPromise();
+  // MAJ scores seulement maintenant
+  if (choice1 === corr) score1++;
+  if (choice2 === corr) score2++;
+  updateScores();
+  nextBtn.style.display = 'inline-block';
+}
+
+/* Score UI */
+function updateScores() {
+  scoreText1.textContent = `Joueur 1 : ${score1}`;
+  scoreText2.textContent = `Joueur 2 : ${score2}`;
+  const max = questions.length;
+  // ajuster hauteur barres (en pourcentage du nombre de questions)
+  bar1.style.height = (score1 / max * 100) + "%";
+  bar2.style.height = (score2 / max * 100) + "%";
+}
+
+/* enable/disable */
+function disableButtons() {
+  p1Vrai.disabled = true; p1Faux.disabled = true; p2Vrai.disabled = true; p2Faux.disabled = true;
+}
+function enableButtons() {
+  p1Vrai.disabled = false; p1Faux.disabled = false; p2Vrai.disabled = false; p2Faux.disabled = false;
+}
+
+/* ========= Event listeners ========= */
+p1Vrai.addEventListener('click', ()=>answer(1,"VRAI"));
+p1Faux.addEventListener('click', ()=>answer(1,"FAUX"));
+p2Vrai.addEventListener('click', ()=>answer(2,"VRAI"));
+p2Faux.addEventListener('click', ()=>answer(2,"FAUX"));
+
+nextBtn.addEventListener('click', ()=> {
+  idx++;
+  showQuestion();
+});
+
+/* start */
+showQuestion();
+
+/* Safety: resume audio context when user interacts anywhere (helps mobile) */
+document.addEventListener('click', () => {
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}, { once: true });
+</script>
+</body>
+</html>
